@@ -16,27 +16,31 @@
     align-items: center;
   }
 
-/* นาฬิกาชิดกลางด้านล่าง */
-#clock {
-  position: fixed;
-  bottom: 10px;           /* ด้านล่างหน้าจอ */
-  left: 50%;              /* กึ่งกลางแนวนอน */
-  transform: translateX(-50%);
-  font-size: 5rem;
-  font-weight: bold;
-  color: #007bff;
-}
-
-  }
-
-  #mainBus {
-    font-size: 4rem;
+  /* นาฬิกากลางด้านล่าง */
+  #clock {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2rem;
     font-weight: bold;
     color: #007bff;
-    margin: 2rem 0;
-    text-align: center;
   }
 
+  /* รถใกล้สุดใหญ่กลางจอ */
+  #mainBus {
+    font-size: 5rem;
+    font-weight: bold;
+    color: white;
+    background-color: #28a745; /* เขียว */
+    padding: 2rem 4rem;
+    border-radius: 20px;
+    text-align: center;
+    margin: 2rem 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+
+  /* รถคันอื่น แถวล่าง ขนาดเล็ก */
   #otherBuses {
     display: flex;
     flex-wrap: wrap;
@@ -68,7 +72,7 @@
 <body>
 
 <div id="clock">--:--:--</div>
-<h1>สถานีจุดจอดตลาดแลงบ้านคำไฮ</h1>
+<h1>🚍สถานีตลาดแลงบ้านคำไฮ🚍</h1>
 
 <div id="mainBus">กำลังโหลด...</div>
 <div id="otherBuses"></div>
@@ -102,12 +106,12 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// อัปเดตรายการรถ
+// ฟังก์ชันอัปเดตรายการรถ
 function updateBusDisplay(busData) {
   const mainBusDiv = document.getElementById("mainBus");
   const otherBusesDiv = document.getElementById("otherBuses");
   otherBusesDiv.innerHTML = "";
-  
+
   // กรองรถที่มีพิกัด
   const busesWithCoords = Object.entries(busData || {}).filter(([busId, bus]) => bus.lat && bus.lon);
 
@@ -116,10 +120,10 @@ function updateBusDisplay(busData) {
     return;
   }
 
-  // คำนวณระยะทาง
+  // คำนวณระยะทาง + ETA
   const busesWithDist = busesWithCoords.map(([busId, bus]) => {
     const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
-    const speed = 30;
+    const speed = 30; // km/h สมมุติ
     const eta = Math.round((dist / speed) * 60); // นาที
     return { busId, eta, dist, status: eta<=1 ? "ถึงแล้ว" : "กำลังมา" };
   });
@@ -148,7 +152,7 @@ function updateBusDisplay(busData) {
   });
 }
 
-// ฟังก์ชันดึงข้อมูลจาก Firebase ทุก ๆ 1 นาที
+// ดึงข้อมูลจาก Firebase ทุก 1 นาที
 function fetchBusData() {
   onValue(ref(db, 'bus'), snapshot => {
     const data = snapshot.val();
@@ -156,13 +160,10 @@ function fetchBusData() {
   });
 }
 
-// เรียกครั้งแรก + ตั้ง interval 1 นาที
+// เรียกครั้งแรก + ตั้ง interval
 fetchBusData();
 setInterval(fetchBusData, 60000);
+
 </script>
 </body>
 </html>
-
-
-
-
