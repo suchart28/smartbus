@@ -13,11 +13,6 @@
     padding: 1rem;
     text-align: center;
   }
-  input, button {
-    font-size: 1.5rem;
-    padding: 0.5rem;
-    margin: 0.5rem;
-  }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -46,26 +41,7 @@
 <body>
 <h1>🚍 ตารางเวลารถโดยสาร</h1>
 
-<div>
-  <input id="stopName" placeholder="กรอกชื่อสถานีจอดใหม่">
-  <button id="addStop">ใช้ตำแหน่งปัจจุบันเป็นสถานีใหม่</button>
-</div>
-
-<h2>สถานีหลัก</h2>
-<table id="staticTable">
-  <thead>
-    <tr>
-      <th>สถานี</th>
-      <th>รถโดยสาร</th>
-      <th>เวลาถึง (นาที)</th>
-      <th>สถานะ</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
-<h2>สถานีชั่วคราว/ใหม่</h2>
-<table id="dynamicTable">
+<table id="busTable">
   <thead>
     <tr>
       <th>สถานี</th>
@@ -79,17 +55,15 @@
 
 <script type="module">
 import { db } from './firebase.js';
-import { ref, onValue, set, push } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
 
-// Static stops – สถานีหลัก
+// กำหนด Static Stops
 const staticStops = {
-  stop01: { name: "มหาวิทยาลัยขอนแก่น", lat: 16.4280, lon: 102.8355 },
-  stop02: { name: "บขส.ขอนแก่น", lat: 16.4410, lon: 102.8270 }
+  stop01: { name: "ตลาดแลงบ้านคำไฮ", lat: 16.437531, lon: 102.799620 },
+  stop02: { name: "จีเนียสแคมป์ขอนแก่น", lat: 16.438940, lon: 102.791168 }
 };
 
-// แยกตาราง
-const staticTableBody = document.querySelector("#staticTable tbody");
-const dynamicTableBody = document.querySelector("#dynamicTable tbody");
+const tableBody = document.querySelector("#busTable tbody");
 
 // ฟังก์ชันคำนวณระยะทาง
 function distance(lat1, lon1, lat2, lon2) {
@@ -102,35 +76,15 @@ function distance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// เพิ่มสถานีใหม่ด้วยตำแหน่งปัจจุบัน
-document.getElementById("addStop").addEventListener("click", () => {
-  const stopNameInput = document.getElementById("stopName").value.trim();
-  if (!stopNameInput) return alert("กรุณากรอกชื่อสถานี");
-
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const lat = pos.coords.latitude;
-      const lon = pos.coords.longitude;
-      const newStopRef = push(ref(db, 'stops'));
-      newStopRef.set({ name: stopNameInput, lat, lon });
-      alert(`เพิ่มสถานีใหม่: ${stopNameInput}`);
-      document.getElementById("stopName").value = "";
-    }, () => alert("ไม่สามารถเข้าถึงตำแหน่งอุปกรณ์ได้"));
-  } else {
-    alert("อุปกรณ์ไม่รองรับ Geolocation");
-  }
-});
-
-// ดึงพิกัดรถและสถานีแบบ realtime
+// ฟังก์ชันอัปเดตตารางเวลารถแบบ realtime
 onValue(ref(db, 'bus'), (snapshot) => {
   const busData = snapshot.val() || {};
+  tableBody.innerHTML = "";
 
-  // Static stops
-  staticTableBody.innerHTML = "";
   Object.entries(staticStops).forEach(([stopId, stop]) => {
     Object.entries(busData).forEach(([busId, bus]) => {
       const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
-      const speed = 30;
+      const speed = 30; // km/h สมมุติ
       const minutes = Math.round((dist / speed) * 60);
       const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
 
@@ -140,31 +94,9 @@ onValue(ref(db, 'bus'), (snapshot) => {
           <td>${busId}</td>
           <td class="eta ${minutes <= 1 ? 'arrived' : ''}">${minutes}</td>
           <td>${status}</td>
-        </tr>`;
-      staticTableBody.insertAdjacentHTML("beforeend", row);
-    });
-  });
-
-  // Dynamic stops จาก Firebase
-  onValue(ref(db, 'stops'), (stopSnapshot) => {
-    const stopsData = stopSnapshot.val() || {};
-    dynamicTableBody.innerHTML = "";
-    Object.entries(stopsData).forEach(([stopId, stop]) => {
-      Object.entries(busData).forEach(([busId, bus]) => {
-        const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
-        const speed = 30;
-        const minutes = Math.round((dist / speed) * 60);
-        const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
-
-        const row = `
-          <tr>
-            <td>${stop.name}</td>
-            <td>${busId}</td>
-            <td class="eta ${minutes <= 1 ? 'arrived' : ''}">${minutes}</td>
-            <td>${status}</td>
-          </tr>`;
-        dynamicTableBody.insertAdjacentHTML("beforeend", row);
-      });
+        </tr>
+      `;
+      tableBody.insertAdjacentHTML("beforeend", row);
     });
   });
 });
