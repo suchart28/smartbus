@@ -8,12 +8,14 @@
 <style>
   body {
     font-family: 'Prompt', sans-serif;
-    background: #f8fafc;
+    background: #f0f4f8;
     margin: 0;
     padding: 1rem;
-    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
-  /* นาฬิกาชิดขวา มุมบน */
+
   #clock {
     position: fixed;
     top: 10px;
@@ -22,24 +24,35 @@
     font-weight: bold;
     color: #007bff;
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 3rem; /* เว้นช่องให้ clock */
-    font-size: 2rem;
+
+  #mainBus {
+    font-size: 4rem;
+    font-weight: bold;
+    color: #007bff;
+    margin: 2rem 0;
     text-align: center;
   }
-  th {
-    background: #007bff;
-    color: white;
-    padding: 1rem;
+
+  #otherBuses {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 2rem;
   }
-  td {
-    border-bottom: 1px solid #ddd;
-    padding: 1rem;
+
+  .busCard {
+    background: #fff;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    text-align: center;
+    min-width: 150px;
+    font-size: 1.5rem;
   }
+
   .eta {
-    font-size: 3rem;
+    font-size: 2rem;
     font-weight: bold;
     color: #007bff;
   }
@@ -51,32 +64,17 @@
 <body>
 
 <div id="clock">--:--:--</div>
+<h1>🚍 สถานะรถโดยสาร</h1>
 
-<h1>🚍 ตารางเวลารถโดยสาร</h1>
-
-<table id="busTable">
-  <thead>
-    <tr>
-      <th>สถานี</th>
-      <th>รถโดยสาร</th>
-      <th>เวลาถึง (นาที)</th>
-      <th>สถานะ</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+<div id="mainBus">กำลังโหลด...</div>
+<div id="otherBuses"></div>
 
 <script type="module">
 import { db } from './firebase.js';
 import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
 
-// Static stops
-const staticStops = {
-  stop01: { name: "มหาวิทยาลัยขอนแก่น", lat: 16.4280, lon: 102.8355 },
-  stop02: { name: "บขส.ขอนแก่น", lat: 16.4410, lon: 102.8270 }
-};
-
-const tableBody = document.querySelector("#busTable tbody");
+// Static stop
+const stop = { name: "มหาวิทยาลัยขอนแก่น", lat: 16.4280, lon: 102.8355 };
 
 // ฟังก์ชันคำนวณระยะทาง
 function distance(lat1, lon1, lat2, lon2) {
@@ -89,7 +87,7 @@ function distance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ฟังก์ชันแสดงเวลาปัจจุบัน
+// แสดงนาฬิกา
 function updateClock() {
   const now = new Date();
   const h = String(now.getHours()).padStart(2,'0');
@@ -98,32 +96,65 @@ function updateClock() {
   document.getElementById("clock").textContent = `${h}:${m}:${s}`;
 }
 setInterval(updateClock, 1000);
-updateClock(); // เรียกครั้งแรกทันที
+updateClock();
 
-// ฟังก์ชันอัปเดตตารางเวลารถแบบ realtime
-onValue(ref(db, 'bus'), (snapshot) => {
-  const busData = snapshot.val() || {};
-  tableBody.innerHTML = "";
+// อัปเดตรายการรถ
+function updateBusDisplay(busData) {
+  const mainBusDiv = document.getElementById("mainBus");
+  const otherBusesDiv = document.getElementById("otherBuses");
+  otherBusesDiv.innerHTML = "";
+  
+  // กรองรถที่มีพิกัด
+  const busesWithCoords = Object.entries(busData || {}).filter(([busId, bus]) => bus.lat && bus.lon);
 
-  Object.entries(staticStops).forEach(([stopId, stop]) => {
-    Object.entries(busData).forEach(([busId, bus]) => {
-      const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
-      const speed = 30; // km/h สมมุติ
-      const minutes = Math.round((dist / speed) * 60);
-      const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
+  if (busesWithCoords.length === 0) {
+    mainBusDiv.textContent = "ไม่มีรถส่งพิกัด";
+    return;
+  }
 
-      const row = `
-        <tr>
-          <td>${stop.name}</td>
-          <td>${busId}</td>
-          <td class="eta ${minutes <= 1 ? 'arrived' : ''}">${minutes}</td>
-          <td>${status}</td>
-        </tr>
-      `;
-      tableBody.insertAdjacentHTML("beforeend", row);
-    });
+  // คำนวณระยะทาง
+  const busesWithDist = busesWithCoords.map(([busId, bus]) => {
+    const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
+    const speed = 30;
+    const eta = Math.round((dist / speed) * 60); // นาที
+    return { busId, eta, dist, status: eta<=1 ? "ถึงแล้ว" : "กำลังมา" };
   });
-});
+
+  // เรียงตามระยะทางใกล้สุด
+  busesWithDist.sort((a,b) => a.dist - b.dist);
+
+  // แสดงรถใกล้สุดกลางจอ
+  const mainBus = busesWithDist[0];
+  mainBusDiv.innerHTML = `
+    รถ: ${mainBus.busId} <br>
+    <span class="eta ${mainBus.eta<=1?'arrived':''}">${mainBus.eta} นาที</span><br>
+    ${mainBus.status}
+  `;
+
+  // แสดงรถคันอื่นด้านล่าง
+  busesWithDist.slice(1).forEach(bus => {
+    const card = document.createElement("div");
+    card.className = "busCard";
+    card.innerHTML = `
+      รถ: ${bus.busId}<br>
+      <span class="eta ${bus.eta<=1?'arrived':''}">${bus.eta} นาที</span><br>
+      ${bus.status}
+    `;
+    otherBusesDiv.appendChild(card);
+  });
+}
+
+// ฟังก์ชันดึงข้อมูลจาก Firebase ทุก ๆ 1 นาที
+function fetchBusData() {
+  onValue(ref(db, 'bus'), snapshot => {
+    const data = snapshot.val();
+    updateBusDisplay(data);
+  });
+}
+
+// เรียกครั้งแรก + ตั้ง interval 1 นาที
+fetchBusData();
+setInterval(fetchBusData, 60000);
 </script>
 </body>
 </html>
