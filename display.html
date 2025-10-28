@@ -8,12 +8,16 @@
 <style>
   body {
     font-family: 'Prompt', sans-serif;
-    background: #f8fafc;
+    background: #f0f4f8;
     margin: 0;
     padding: 1rem;
-    position: relative;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
-  /* นาฬิกาชิดขวา มุมบน */
+
+  /* นาฬิกามุมขวาบน */
   #clock {
     position: fixed;
     top: 10px;
@@ -22,62 +26,94 @@
     font-weight: bold;
     color: #007bff;
   }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 3rem; /* เว้นช่องให้ clock */
-    font-size: 2rem;
-    text-align: center;
+
+  h1 {
+    margin-top: 2rem;
+    font-size: 2.5rem;
   }
-  th {
+
+  /* Container ของรถ */
+  #busContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 2rem;
+    width: 90%;
+  }
+
+  /* รถใกล้สุดใหญ่ */
+  .focusBus {
     background: #007bff;
     color: white;
-    padding: 1rem;
+    font-size: 4rem;
+    font-weight: bold;
+    padding: 2rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+    width: 80%;
+    text-align: center;
   }
-  td {
-    border-bottom: 1px solid #ddd;
-    padding: 1rem;
+
+  /* รถอื่น ๆ แถวล่าง */
+  .otherBuses {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
   }
+
+  .otherBus {
+    background: #fff;
+    border: 2px solid #007bff;
+    border-radius: 1rem;
+    padding: 1rem;
+    width: 200px;
+    text-align: center;
+    font-size: 1.5rem;
+  }
+
   .eta {
     font-size: 3rem;
     font-weight: bold;
-    color: #007bff;
+    color: #ffeb3b;
   }
+
   .arrived {
     color: #28a745;
   }
+
 </style>
 </head>
 <body>
 
 <div id="clock">--:--:--</div>
+<h1>🚍 สถานี: มหาวิทยาลัยขอนแก่น</h1>
 
-<h1>🚍 ตารางเวลารถโดยสาร</h1>
-
-<table id="busTable">
-  <thead>
-    <tr>
-      <th>สถานี</th>
-      <th>รถโดยสาร</th>
-      <th>เวลาถึง (นาที)</th>
-      <th>สถานะ</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+<div id="busContainer">
+  <div id="focusBus" class="focusBus">--:--</div>
+  <div id="otherBuses" class="otherBuses"></div>
+</div>
 
 <script type="module">
 import { db } from './firebase.js';
 import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
 
-// Static stops
-const staticStops = {
+// Static stop (ตัวอย่าง)
  stop01: { name: "ตลาดแลงบ้านคำไฮ", lat: 16.437531, lon: 102.799620 },
  stop02: { name: "จีเนียสแคมป์ขอนแก่น", lat: 16.438940, lon: 102.791168 },
  stop03: { name: "ประตูเมือง", lat: 16.432001, lon: 102.825179 }
-};
 
-const tableBody = document.querySelector("#busTable tbody");
+// นาฬิกา
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById("clock").textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
 
 // ฟังก์ชันคำนวณระยะทาง
 function distance(lat1, lon1, lat2, lon2) {
@@ -90,41 +126,43 @@ function distance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ฟังก์ชันแสดงเวลาปัจจุบัน
-function updateClock() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2,'0');
-  const m = String(now.getMinutes()).padStart(2,'0');
-  const s = String(now.getSeconds()).padStart(2,'0');
-  document.getElementById("clock").textContent = `${h}:${m}:${s}`;
-}
-setInterval(updateClock, 1000);
-updateClock(); // เรียกครั้งแรกทันที
+// อัปเดตรถ
+const focusBusDiv = document.getElementById("focusBus");
+const otherBusesDiv = document.getElementById("otherBuses");
 
-// ฟังก์ชันอัปเดตตารางเวลารถแบบ realtime
 onValue(ref(db, 'bus'), (snapshot) => {
   const busData = snapshot.val() || {};
-  tableBody.innerHTML = "";
+  const buses = [];
 
-  Object.entries(staticStops).forEach(([stopId, stop]) => {
-    Object.entries(busData).forEach(([busId, bus]) => {
-      const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
-      const speed = 30; // km/h สมมุติ
-      const minutes = Math.round((dist / speed) * 60);
-      const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
+  Object.entries(busData).forEach(([busId, bus]) => {
+    const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
+    const speed = 30;
+    const minutes = Math.round((dist / speed) * 60);
+    const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
+    buses.push({ busId, minutes, status, dist });
+  });
 
-      const row = `
-        <tr>
-          <td>${stop.name}</td>
-          <td>${busId}</td>
-          <td class="eta ${minutes <= 1 ? 'arrived' : ''}">${minutes}</td>
-          <td>${status}</td>
-        </tr>
-      `;
-      tableBody.insertAdjacentHTML("beforeend", row);
-    });
+  // เรียงตามระยะทางใกล้สุด
+  buses.sort((a,b) => a.dist - b.dist);
+
+  // รถใกล้สุด
+  if (buses.length > 0) {
+    const b = buses[0];
+    focusBusDiv.innerHTML = `${b.busId}<br><span class="eta ${b.minutes<=1?'arrived':''}">${b.minutes} นาที</span><br>${b.status}`;
+  } else {
+    focusBusDiv.innerHTML = "--:--";
+  }
+
+  // รถอื่น ๆ
+  otherBusesDiv.innerHTML = "";
+  buses.slice(1).forEach(b => {
+    const div = document.createElement("div");
+    div.className = "otherBus";
+    div.innerHTML = `${b.busId}<br><span class="eta ${b.minutes<=1?'arrived':''}">${b.minutes} นาที</span><br>${b.status}`;
+    otherBusesDiv.appendChild(div);
   });
 });
 </script>
+
 </body>
 </html>
