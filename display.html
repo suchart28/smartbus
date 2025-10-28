@@ -11,13 +11,23 @@
     background: #f8fafc;
     margin: 0;
     padding: 1rem;
-    text-align: center;
+    position: relative;
+  }
+  /* นาฬิกาชิดขวา มุมบน */
+  #clock {
+    position: fixed;
+    top: 10px;
+    right: 20px;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #007bff;
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 1rem;
+    margin-top: 3rem; /* เว้นช่องให้ clock */
     font-size: 2rem;
+    text-align: center;
   }
   th {
     background: #007bff;
@@ -39,6 +49,9 @@
 </style>
 </head>
 <body>
+
+<div id="clock">--:--:--</div>
+
 <h1>🚍 ตารางเวลารถโดยสาร</h1>
 
 <table id="busTable">
@@ -57,10 +70,11 @@
 import { db } from './firebase.js';
 import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
 
-// กำหนด Static Stops
+// Static stops
 const staticStops = {
-  stop01: { name: "ตลาดแลงบ้านคำไฮ", lat: 16.437531, lon: 102.799620 },
-  stop02: { name: "จีเนียสแคมป์ขอนแก่น", lat: 16.438940, lon: 102.791168 }
+ stop01: { name: "ตลาดแลงบ้านคำไฮ", lat: 16.437531, lon: 102.799620 },
+ stop02: { name: "จีเนียสแคมป์ขอนแก่น", lat: 16.438940, lon: 102.791168 },
+ stop03: { name: "ประตูเมือง", lat: 16.432001, lon: 102.825179 }
 };
 
 const tableBody = document.querySelector("#busTable tbody");
@@ -75,6 +89,17 @@ function distance(lat1, lon1, lat2, lon2) {
             Math.sin(dLon/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
+
+// ฟังก์ชันแสดงเวลาปัจจุบัน
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById("clock").textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock(); // เรียกครั้งแรกทันที
 
 // ฟังก์ชันอัปเดตตารางเวลารถแบบ realtime
 onValue(ref(db, 'bus'), (snapshot) => {
