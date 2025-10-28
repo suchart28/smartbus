@@ -16,7 +16,7 @@
     }
 
     h1 {
-        font-size: 2.4rem;
+        font-size: 2.6rem;
         font-weight: bold;
         margin-top: 25px;
         color: #ffdd57;
@@ -24,38 +24,38 @@
 
     input {
         width: 80%;
-        padding: 15px;
-        font-size: 2rem;
+        padding: 18px;
+        font-size: 2.2rem;
         border-radius: 12px;
         border: none;
-        margin: 15px 0;
+        margin: 20px 0;
         text-align: center;
     }
 
     .status {
-        font-size: 1.8rem;
-        margin: 15px 0;
-        padding: 10px;
+        font-size: 2rem;
+        margin: 20px 0;
+        padding: 12px;
+        border-radius: 12px;
         background: #1a759f;
-        border-radius: 10px;
         display: inline-block;
-        min-width: 80%;
+        width: 80%;
     }
 
     .coords {
-        font-size: 1.6rem;
-        margin: 10px 0;
+        font-size: 1.8rem;
+        margin: 12px 0;
     }
 
     button {
         width: 90%;
-        padding: 20px;
-        font-size: 2.2rem;
+        padding: 22px;
+        font-size: 2.4rem;
         border-radius: 15px;
         background: #2a9d8f;
         color: #fff;
         border: none;
-        margin-top: 20px;
+        margin-top: 25px;
         cursor: pointer;
         font-weight: bold;
     }
@@ -72,15 +72,16 @@
 
 <input type="text" id="busId" placeholder="กรอกรหัสรถบัส เช่น 23">
 
-<div class="status" id="statusText">กำลังค้นหาตำแหน่ง...</div>
+<div class="status" id="statusText">รอการส่งข้อมูล...</div>
 <div class="coords" id="coordsText">-</div>
 
 <button onclick="sendLocation()">ส่งตำแหน่งทันที</button>
+<button onclick="enableWakeLock()">🔒 ป้องกันหน้าจอดับ</button>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/XXXXXXX/exec"; // <--- ใส่ URL ของคุณ
+// ✅ ใช้ URL จริงของคุณแล้ว
+const API_URL = "https://script.google.com/macros/s/AKfycbxYUugnohNTQARDzq_uODdY5ObYAiUPnXA7yNVXfOxsMTFt1FmXqWKQZV_sc-fGvuIJ/exec";
 
-// โหลดรหัสรถที่เคยบันทึกไว้
 document.getElementById("busId").value = localStorage.getItem("busId") || "";
 
 function sendLocation() {
@@ -91,7 +92,6 @@ function sendLocation() {
         return;
     }
 
-    // บันทึกไว้ในมือถือ ไม่ต้องพิมพ์ใหม่
     localStorage.setItem("busId", busId);
 
     navigator.geolocation.getCurrentPosition(pos => {
@@ -102,11 +102,15 @@ function sendLocation() {
             `🌏 ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 
         fetch(`${API_URL}?bus=${busId}&lat=${lat}&lon=${lon}`)
-            .then(() => {
-                document.getElementById("statusText").textContent = "✅ ส่งสำเร็จ";
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById("statusText").textContent = "✅ ส่งสำเร็จแล้ว";
+                } else {
+                    document.getElementById("statusText").textContent = "❌ เซิร์ฟเวอร์ตอบกลับผิดพลาด";
+                }
             })
             .catch(() => {
-                document.getElementById("statusText").textContent = "❌ ส่งไม่สำเร็จ";
+                document.getElementById("statusText").textContent = "❌ ส่งไม่สำเร็จ (ตรวจเน็ตหรือสัญญาณ)";
             });
 
     }, () => {
@@ -116,9 +120,26 @@ function sendLocation() {
 
 // ส่งอัตโนมัติทุก 2 นาที
 setInterval(sendLocation, 2 * 60 * 1000);
-
-// ส่งครั้งแรกเมื่อเปิดหน้า
 sendLocation();
+
+// 🔒 กันหน้าจอดับ
+let wakeLock = null;
+
+async function enableWakeLock() {
+    try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        document.getElementById("statusText").textContent = "🔒 หน้าจอจะไม่ดับแล้ว";
+        wakeLock.addEventListener('release', () => {
+            document.getElementById("statusText").textContent = "⚠️ หน้าจอกลับมาดับได้อีก";
+        });
+    } catch (err) {
+        document.getElementById("statusText").textContent = "❌ มือถือไม่รองรับ Wake Lock";
+    }
+}
+
+document.addEventListener("visibilitychange", () => {
+    if (wakeLock && document.visibilityState === "visible") enableWakeLock();
+});
 </script>
 
 </body>
