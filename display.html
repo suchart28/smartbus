@@ -16,13 +16,17 @@
     align-items: center;
   }
 
-  #clock {
-    position: fixed;
-    top: 10px;
-    right: 20px;
-    font-size: 2rem;
-    font-weight: bold;
-    color: #007bff;
+/* นาฬิกาชิดกลางด้านล่าง */
+#clock {
+  position: fixed;
+  bottom: 10px;           /* ด้านล่างหน้าจอ */
+  left: 50%;              /* กึ่งกลางแนวนอน */
+  transform: translateX(-50%);
+  font-size: 2rem;
+  font-weight: bold;
+  color: #007bff;
+}
+
   }
 
   #mainBus {
@@ -158,5 +162,6 @@ setInterval(fetchBusData, 60000);
 </script>
 </body>
 </html>
+
 
 
