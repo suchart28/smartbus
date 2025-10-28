@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bus Tracker</title>
+<style>
+  body { font-family: 'Prompt', sans-serif; text-align:center; padding:2rem; }
+  input, button { font-size:1.5rem; margin:1rem; padding:0.5rem 1rem; }
+  button { background:#007bff; color:#fff; border:none; border-radius:8px; }
+</style>
+</head>
+<body>
+<h2>ระบบส่งพิกัดรถโดยสาร</h2>
+<input id="busId" placeholder="กรอก Bus ID เช่น bus01"><br>
+<button id="startBtn">เริ่มส่งพิกัด</button>
+
+<script type="module">
+import { db } from './firebase.js';
+import { ref, set } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+
+document.getElementById("startBtn").addEventListener("click", () => {
+  const busId = document.getElementById("busId").value.trim();
+  if (!busId) return alert("กรุณากรอก Bus ID");
+
+  if (navigator.geolocation) {
+    alert("เริ่มส่งพิกัดเรียบร้อย");
+    setInterval(() => {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude } = pos.coords;
+        set(ref(db, `bus/${busId}`), {
+          lat: latitude,
+          lon: longitude,
+          timestamp: Date.now()
+        });
+      });
+    }, 10000);
+  } else {
+    alert("อุปกรณ์ไม่รองรับการระบุตำแหน่ง");
+  }
+});
+</script>
+</body>
+</html>
