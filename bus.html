@@ -2,43 +2,99 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<title>Bus Location Sender</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bus Tracker</title>
+
 <style>
-  body { font-family: 'Prompt', sans-serif; text-align:center; padding:2rem; }
-  input, button { font-size:1.5rem; margin:1rem; padding:0.5rem 1rem; }
-  button { background:#007bff; color:#fff; border:none; border-radius:8px; }
+    body {
+        font-family: sans-serif;
+        background: #003049;
+        color: #fff;
+        margin: 0;
+        padding: 0;
+        text-align: center;
+    }
+
+    h1 {
+        font-size: 2.4rem;
+        font-weight: bold;
+        margin-top: 25px;
+        color: #ffdd57;
+    }
+
+    .status {
+        font-size: 1.8rem;
+        margin: 15px 0;
+        padding: 10px;
+        background: #1a759f;
+        border-radius: 10px;
+        display: inline-block;
+        min-width: 80%;
+    }
+
+    .coords {
+        font-size: 1.6rem;
+        margin: 10px 0;
+    }
+
+    button {
+        width: 90%;
+        padding: 20px;
+        font-size: 2.2rem;
+        border-radius: 15px;
+        background: #2a9d8f;
+        color: #fff;
+        border: none;
+        margin-top: 20px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    button:active {
+        background: #21867a;
+    }
 </style>
+
 </head>
 <body>
-<h2>ระบบส่งพิกัดรถโดยสาร</h2>
-<input id="busId" placeholder="กรอก Bus ID เช่น bus01"><br>
-<button id="startBtn">เริ่มส่งพิกัด</button>
 
-<script type="module">
-import { db } from './firebase.js';
-import { ref, set } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+<h1>🚍 ส่งตำแหน่งรถบัส</h1>
 
-document.getElementById("startBtn").addEventListener("click", () => {
-  const busId = document.getElementById("busId").value.trim();
-  if (!busId) return alert("กรุณากรอก Bus ID");
+<div class="status" id="statusText">กำลังค้นหาตำแหน่ง...</div>
+<div class="coords" id="coordsText">-</div>
 
-  if (navigator.geolocation) {
-    alert("เริ่มส่งพิกัดเรียบร้อย");
-    setInterval(() => {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const { latitude, longitude } = pos.coords;
-        set(ref(db, `bus/${busId}`), {
-          lat: latitude,
-          lon: longitude,
-          timestamp: Date.now()
-        });
-      });
-    }, 10000);
-  } else {
-    alert("อุปกรณ์ไม่รองรับการระบุตำแหน่ง");
-  }
-});
+<button onclick="sendLocation()">ส่งตำแหน่งทันที</button>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/XXXXXXX/exec";  // <--- ใส่ URL ของคุณ
+
+function sendLocation() {
+    navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        document.getElementById("coordsText").textContent = 
+            `🌏 ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+        fetch(`${API_URL}?lat=${lat}&lon=${lon}`)
+            .then(() => {
+                document.getElementById("statusText").textContent = "✅ ส่งสำเร็จ";
+            })
+            .catch(() => {
+                document.getElementById("statusText").textContent = "❌ ส่งไม่สำเร็จ";
+            });
+
+    }, () => {
+        document.getElementById("statusText").textContent = "⚠️ เปิดการแชร์ตำแหน่งก่อน";
+    });
+}
+
+// ⏱ ส่งอัตโนมัติทุก 2 นาที
+setInterval(sendLocation, 2 * 60 * 1000);
+
+// เรียกส่งครั้งแรกทันทีเมื่อเปิดหน้า
+sendLocation();
 </script>
+
 </body>
 </html>
