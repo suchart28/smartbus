@@ -47,15 +47,28 @@
 <h1>🚍 ตารางเวลารถโดยสาร</h1>
 
 <div>
-  <input id="stopName" placeholder="กรอกชื่อสถานีจอด">
-  <button id="detectStop">ใช้ตำแหน่งปัจจุบัน</button>
+  <input id="stopName" placeholder="กรอกชื่อสถานีจอดใหม่">
+  <button id="addStop">ใช้ตำแหน่งปัจจุบันเป็นสถานีใหม่</button>
 </div>
 
-<p id="stopInfo">กรุณาเลือกหรือใช้ตำแหน่งปัจจุบันของสถานีจอด</p>
-
-<table id="busTable">
+<h2>สถานีหลัก</h2>
+<table id="staticTable">
   <thead>
     <tr>
+      <th>สถานี</th>
+      <th>รถโดยสาร</th>
+      <th>เวลาถึง (นาที)</th>
+      <th>สถานะ</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>สถานีชั่วคราว/ใหม่</h2>
+<table id="dynamicTable">
+  <thead>
+    <tr>
+      <th>สถานี</th>
       <th>รถโดยสาร</th>
       <th>เวลาถึง (นาที)</th>
       <th>สถานะ</th>
@@ -66,11 +79,17 @@
 
 <script type="module">
 import { db } from './firebase.js';
-import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+import { ref, onValue, set, push } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
 
-let stopLat = null;
-let stopLon = null;
-let stopName = "";
+// Static stops – สถานีหลัก
+const staticStops = {
+  stop01: { name: "มหาวิทยาลัยขอนแก่น", lat: 16.4280, lon: 102.8355 },
+  stop02: { name: "บขส.ขอนแก่น", lat: 16.4410, lon: 102.8270 }
+};
+
+// แยกตาราง
+const staticTableBody = document.querySelector("#staticTable tbody");
+const dynamicTableBody = document.querySelector("#dynamicTable tbody");
 
 // ฟังก์ชันคำนวณระยะทาง
 function distance(lat1, lon1, lat2, lon2) {
@@ -83,45 +102,70 @@ function distance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ใช้ตำแหน่งปัจจุบันของอุปกรณ์
-document.getElementById("detectStop").addEventListener("click", () => {
+// เพิ่มสถานีใหม่ด้วยตำแหน่งปัจจุบัน
+document.getElementById("addStop").addEventListener("click", () => {
+  const stopNameInput = document.getElementById("stopName").value.trim();
+  if (!stopNameInput) return alert("กรุณากรอกชื่อสถานี");
+
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition((pos) => {
-      stopLat = pos.coords.latitude;
-      stopLon = pos.coords.longitude;
-      stopName = document.getElementById("stopName").value || "สถานีปัจจุบัน";
-      document.getElementById("stopInfo").innerText = `สถานี: ${stopName} (Lat: ${stopLat.toFixed(5)}, Lon: ${stopLon.toFixed(5)})`;
-    }, (err) => {
-      alert("ไม่สามารถเข้าถึงตำแหน่งอุปกรณ์ได้");
-    });
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const newStopRef = push(ref(db, 'stops'));
+      newStopRef.set({ name: stopNameInput, lat, lon });
+      alert(`เพิ่มสถานีใหม่: ${stopNameInput}`);
+      document.getElementById("stopName").value = "";
+    }, () => alert("ไม่สามารถเข้าถึงตำแหน่งอุปกรณ์ได้"));
   } else {
-    alert("อุปกรณ์นี้ไม่รองรับ Geolocation");
+    alert("อุปกรณ์ไม่รองรับ Geolocation");
   }
 });
 
-const tableBody = document.querySelector("#busTable tbody");
-
-// ฟังก์ชันอัปเดตตารางเวลารถแบบ realtime
+// ดึงพิกัดรถและสถานีแบบ realtime
 onValue(ref(db, 'bus'), (snapshot) => {
   const busData = snapshot.val() || {};
-  tableBody.innerHTML = "";
 
-  if (!stopLat || !stopLon) return;
+  // Static stops
+  staticTableBody.innerHTML = "";
+  Object.entries(staticStops).forEach(([stopId, stop]) => {
+    Object.entries(busData).forEach(([busId, bus]) => {
+      const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
+      const speed = 30;
+      const minutes = Math.round((dist / speed) * 60);
+      const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
 
-  Object.entries(busData).forEach(([busId, bus]) => {
-    const dist = distance(stopLat, stopLon, bus.lat, bus.lon);
-    const speed = 30; // km/h สมมุติ
-    const minutes = Math.round((dist / speed) * 60);
-    const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
+      const row = `
+        <tr>
+          <td>${stop.name}</td>
+          <td>${busId}</td>
+          <td class="eta ${minutes <= 1 ? 'arrived' : ''}">${minutes}</td>
+          <td>${status}</td>
+        </tr>`;
+      staticTableBody.insertAdjacentHTML("beforeend", row);
+    });
+  });
 
-    const row = `
-      <tr>
-        <td>${busId}</td>
-        <td class="eta ${minutes <= 1 ? 'arrived' : ''}">${minutes}</td>
-        <td>${status}</td>
-      </tr>
-    `;
-    tableBody.insertAdjacentHTML("beforeend", row);
+  // Dynamic stops จาก Firebase
+  onValue(ref(db, 'stops'), (stopSnapshot) => {
+    const stopsData = stopSnapshot.val() || {};
+    dynamicTableBody.innerHTML = "";
+    Object.entries(stopsData).forEach(([stopId, stop]) => {
+      Object.entries(busData).forEach(([busId, bus]) => {
+        const dist = distance(stop.lat, stop.lon, bus.lat, bus.lon);
+        const speed = 30;
+        const minutes = Math.round((dist / speed) * 60);
+        const status = minutes <= 1 ? "ถึงแล้ว" : "กำลังมา";
+
+        const row = `
+          <tr>
+            <td>${stop.name}</td>
+            <td>${busId}</td>
+            <td class="eta ${minutes <= 1 ? 'arrived' : ''}">${minutes}</td>
+            <td>${status}</td>
+          </tr>`;
+        dynamicTableBody.insertAdjacentHTML("beforeend", row);
+      });
+    });
   });
 });
 </script>
